@@ -1,0 +1,12 @@
+[INFO   ] Logger: Record log in c:\Users\I.L.M\OneDrive\Escritorio\CENTS_FrontEnd\.kivy\logs\kivy_26-11-11_22.txt
+[INFO   ] deps: Successfully imported "kivy_deps.angle" 0.4.0
+[INFO   ] deps: Successfully imported "kivy_deps.glew" 0.3.2
+[INFO   ] deps: Successfully imported "kivy_deps.sdl2" 0.8.1
+[INFO   ] Kivy: v2.3.1
+[INFO   ] Kivy: Installed at "C:\Users\I.L.M\AppData\Local\Programs\Python\Python310\lib\site-packages\kivy\__init__.py"
+[INFO   ] Python: v3.10.5 (tags/v3.10.5:f377153, Jun  6 2022, 16:14:13) [MSC v.1929 64 bit (AMD64)]
+[INFO   ] Python: Interpreter at "C:\Users\I.L.M\AppData\Local\Programs\Python\Python310\python.exe"
+[INFO   ] Logger: Purge log fired. Processing...
+[INFO   ] Logger: Purge finished!
+[INFO   ] Image: Providers: img_tex, img_dds, img_sdl2, img_pil (img_ffpyplayer ignored)
+[INFO   ] Text: Provider: sdl2
