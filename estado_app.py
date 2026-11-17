@@ -3,8 +3,18 @@ CENTS - Estado Global y Almacén de Datos
 Gestiona las transacciones, usuario, presupuestos, inversiones y temas.
 """
 
+from datetime import date
+
 from kivy.event import EventDispatcher
 from kivy.properties import StringProperty, DictProperty, ListProperty, NumericProperty
+
+from utilidades import en_mes_actual
+
+# Opciones fijas de los formularios (se usan en los filtros y en las ventanas de edición)
+CATEGORIAS_INGRESO = ["Salario", "Freelance", "Intereses", "Bonos"]
+METODOS_GASTO = ["Efectivo", "Tarjeta", "Transferencia"]
+METODOS_INGRESO = ["Efectivo", "Transferencia", "Depósito"]
+
 
 class EstadoAplicacion(EventDispatcher):
     nombre_tema = StringProperty("claro")
@@ -25,6 +35,9 @@ class EstadoAplicacion(EventDispatcher):
     })
     
     # Resumen financiero
+    # Preferencias de Configuración (se guardan mientras la app está abierta)
+    notificaciones = DictProperty({"general": True, "presupuesto": True, "pagos": True, "resumen": False, "consejos": True, "novedades": False})
+    seguridad = DictProperty({"dos_pasos": False, "alertas_acceso": True})
     presupuesto_total = NumericProperty(2000.00)
     total_gastado = NumericProperty(1245.80)
     total_ingresado = NumericProperty(1245.80)
@@ -44,6 +57,20 @@ class EstadoAplicacion(EventDispatcher):
         {"id": 8, "fecha": "25 Oct 2026", "descripcion": "Café y desayuno", "categoria": "Alimentación", "metodo": "Efectivo", "monto": 8.75},
         {"id": 9, "fecha": "24 Oct 2026", "descripcion": "Suscripción música", "categoria": "Entretenimiento", "metodo": "Tarjeta", "monto": 5.99},
         {"id": 10, "fecha": "23 Oct 2026", "descripcion": "Productos de limpieza", "categoria": "Vivienda", "metodo": "Tarjeta", "monto": 22.40},
+        {"id": 11, "fecha": "22 Oct 2026", "descripcion": "Pago de luz", "categoria": "Servicios", "metodo": "Transferencia", "monto": 28.40},
+        {"id": 12, "fecha": "20 Oct 2026", "descripcion": "Mercado de frutas", "categoria": "Alimentación", "metodo": "Efectivo", "monto": 18.60},
+        {"id": 13, "fecha": "18 Oct 2026", "descripcion": "Cine y palomitas", "categoria": "Entretenimiento", "metodo": "Tarjeta", "monto": 14.50},
+        {"id": 14, "fecha": "15 Oct 2026", "descripcion": "Pasaje de bus", "categoria": "Transporte", "metodo": "Efectivo", "monto": 6.00},
+        {"id": 15, "fecha": "12 Oct 2026", "descripcion": "Consulta médica", "categoria": "Salud", "metodo": "Tarjeta", "monto": 45.00},
+        {"id": 16, "fecha": "08 Oct 2026", "descripcion": "Plan de celular", "categoria": "Servicios", "metodo": "Transferencia", "monto": 22.00},
+        {"id": 17, "fecha": "28 Sep 2026", "descripcion": "Pago de arriendo", "categoria": "Vivienda", "metodo": "Transferencia", "monto": 350.00},
+        {"id": 18, "fecha": "22 Sep 2026", "descripcion": "Supermercado quincenal", "categoria": "Alimentación", "metodo": "Tarjeta", "monto": 74.30},
+        {"id": 19, "fecha": "17 Sep 2026", "descripcion": "Gasolina", "categoria": "Transporte", "metodo": "Tarjeta", "monto": 38.00},
+        {"id": 20, "fecha": "10 Sep 2026", "descripcion": "Salida a restaurante", "categoria": "Ocio", "metodo": "Tarjeta", "monto": 32.50},
+        {"id": 21, "fecha": "05 Sep 2026", "descripcion": "Internet hogar", "categoria": "Servicios", "metodo": "Transferencia", "monto": 35.00},
+        {"id": 22, "fecha": "29 Ago 2026", "descripcion": "Pago de arriendo", "categoria": "Vivienda", "metodo": "Transferencia", "monto": 350.00},
+        {"id": 23, "fecha": "21 Ago 2026", "descripcion": "Compra de ropa", "categoria": "Ocio", "metodo": "Tarjeta", "monto": 59.90},
+        {"id": 24, "fecha": "09 Ago 2026", "descripcion": "Medicinas", "categoria": "Salud", "metodo": "Efectivo", "monto": 19.75},
     ])
     
     ingresos = ListProperty([
@@ -54,6 +81,23 @@ class EstadoAplicacion(EventDispatcher):
         {"id": 5, "fecha": "26 Oct 2026", "descripcion": "Pago por asesoria", "categoria": "Salario", "metodo": "Transferencia", "monto": 30.00},
         {"id": 6, "fecha": "25 Oct 2026", "descripcion": "Trabajo de la semana", "categoria": "Salario", "metodo": "Transferencia", "monto": 250.00},
         {"id": 7, "fecha": "24 Oct 2026", "descripcion": "Cobro de una deuda", "categoria": "Intereses", "metodo": "Efectivo", "monto": 27.00},
+        {"id": 8, "fecha": "22 Oct 2026", "descripcion": "Proyecto de logotipo", "categoria": "Freelance", "metodo": "Transferencia", "monto": 180.00},
+        {"id": 9, "fecha": "20 Oct 2026", "descripcion": "Intereses de ahorro", "categoria": "Intereses", "metodo": "Depósito", "monto": 12.40},
+        {"id": 10, "fecha": "18 Oct 2026", "descripcion": "Bono por desempeño", "categoria": "Bonos", "metodo": "Transferencia", "monto": 150.00},
+        {"id": 11, "fecha": "15 Oct 2026", "descripcion": "Salario quincenal", "categoria": "Salario", "metodo": "Transferencia", "monto": 520.00},
+        {"id": 12, "fecha": "12 Oct 2026", "descripcion": "Clases particulares", "categoria": "Freelance", "metodo": "Efectivo", "monto": 60.00},
+        {"id": 13, "fecha": "09 Oct 2026", "descripcion": "Reembolso de gastos", "categoria": "Bonos", "metodo": "Depósito", "monto": 35.00},
+        {"id": 14, "fecha": "03 Oct 2026", "descripcion": "Salario quincenal", "categoria": "Salario", "metodo": "Transferencia", "monto": 520.00},
+        {"id": 15, "fecha": "30 Sep 2026", "descripcion": "Rendimiento de póliza", "categoria": "Intereses", "metodo": "Depósito", "monto": 58.30},
+        {"id": 16, "fecha": "25 Sep 2026", "descripcion": "Diseño de página web", "categoria": "Freelance", "metodo": "Transferencia", "monto": 240.00},
+        {"id": 17, "fecha": "20 Sep 2026", "descripcion": "Salario quincenal", "categoria": "Salario", "metodo": "Transferencia", "monto": 520.00},
+        {"id": 18, "fecha": "14 Sep 2026", "descripcion": "Venta de equipo usado", "categoria": "Bonos", "metodo": "Efectivo", "monto": 95.00},
+        {"id": 19, "fecha": "06 Sep 2026", "descripcion": "Salario quincenal", "categoria": "Salario", "metodo": "Transferencia", "monto": 520.00},
+        {"id": 20, "fecha": "28 Ago 2026", "descripcion": "Asesoría contable", "categoria": "Freelance", "metodo": "Depósito", "monto": 130.00},
+        {"id": 21, "fecha": "20 Ago 2026", "descripcion": "Salario quincenal", "categoria": "Salario", "metodo": "Transferencia", "monto": 520.00},
+        {"id": 22, "fecha": "15 Ago 2026", "descripcion": "Intereses de cuenta", "categoria": "Intereses", "metodo": "Depósito", "monto": 9.85},
+        {"id": 23, "fecha": "08 Ago 2026", "descripcion": "Bono de verano", "categoria": "Bonos", "metodo": "Transferencia", "monto": 200.00},
+        {"id": 24, "fecha": "02 Ago 2026", "descripcion": "Salario quincenal", "categoria": "Salario", "metodo": "Transferencia", "monto": 520.00},
     ])
     
     presupuestos = ListProperty([
@@ -71,6 +115,16 @@ class EstadoAplicacion(EventDispatcher):
         {"id": 3, "fecha": "30 Oct 2026", "descripcion": "Certificado de Tesoreria", "entidad": "BCE", "tasa": "2,56%", "dias": "90", "monto": 2500.00},
         {"id": 4, "fecha": "29 Oct 2026", "descripcion": "Bonos del Estado", "entidad": "Ministerio de Finanzas", "tasa": "11,11%", "dias": "1460", "monto": 1000.00},
         {"id": 5, "fecha": "28 Oct 2026", "descripcion": "Certificado de Tesoreria", "entidad": "BCE", "tasa": "2,56%", "dias": "90", "monto": 2500.00},
+        {"id": 6, "fecha": "20 Oct 2026", "descripcion": "Poliza de Acumulación", "entidad": "BANCO PICHINCHA", "tasa": "6,5%", "dias": "180", "monto": 1500.00},
+        {"id": 7, "fecha": "14 Oct 2026", "descripcion": "Certificado de Tesoreria", "entidad": "BCE", "tasa": "2,56%", "dias": "90", "monto": 3000.00},
+        {"id": 8, "fecha": "07 Oct 2026", "descripcion": "Bonos del Estado", "entidad": "Ministerio de Finanzas", "tasa": "11,11%", "dias": "1460", "monto": 800.00},
+        {"id": 9, "fecha": "29 Sep 2026", "descripcion": "Poliza de Acumulación", "entidad": "PRODUBANCO", "tasa": "7%", "dias": "365", "monto": 1200.00},
+        {"id": 10, "fecha": "21 Sep 2026", "descripcion": "Certificado de Depósito", "entidad": "BANCO GUAYAQUIL", "tasa": "5,75%", "dias": "120", "monto": 700.00},
+        {"id": 11, "fecha": "12 Sep 2026", "descripcion": "Poliza de Acumulación", "entidad": "BANCO PICHINCHA", "tasa": "6,5%", "dias": "180", "monto": 950.00},
+        {"id": 12, "fecha": "30 Ago 2026", "descripcion": "Certificado de Tesoreria", "entidad": "BCE", "tasa": "2,56%", "dias": "90", "monto": 2200.00},
+        {"id": 13, "fecha": "22 Ago 2026", "descripcion": "Bonos del Estado", "entidad": "Ministerio de Finanzas", "tasa": "11,11%", "dias": "1460", "monto": 600.00},
+        {"id": 14, "fecha": "11 Ago 2026", "descripcion": "Poliza de Acumulación", "entidad": "PRODUBANCO", "tasa": "7%", "dias": "365", "monto": 1800.00},
+        {"id": 15, "fecha": "03 Ago 2026", "descripcion": "Certificado de Depósito", "entidad": "BANCO GUAYAQUIL", "tasa": "5,75%", "dias": "120", "monto": 400.00},
     ])
     
     inversiones_renta_variable = ListProperty([
@@ -79,6 +133,16 @@ class EstadoAplicacion(EventDispatcher):
         {"id": 3, "fecha": "30 Oct 2026", "accion": "CORPORACION FAVORITA C.A", "broker": "MERCAPITAL", "costo": 2.07, "cantidad": 100, "monto": 270.00, "comision": 0.00, "costo_total": 81.90},
         {"id": 4, "fecha": "29 Oct 2026", "accion": "BANCO DEL AUSTRO", "broker": "MERCAPITAL", "costo": 0.52, "cantidad": 300, "monto": 156.00, "comision": 70.00, "costo_total": 388.00},
         {"id": 5, "fecha": "28 Oct 2026", "accion": "BlackBerry", "broker": "XTB", "costo": 8.19, "cantidad": 10, "monto": 81.90, "comision": 0.00, "costo_total": 135.72},
+        {"id": 6, "fecha": "21 Oct 2026", "accion": "TESLA", "broker": "XTB", "costo": 215.30, "cantidad": 2, "monto": 430.60, "comision": 3.50, "costo_total": 434.10},
+        {"id": 7, "fecha": "15 Oct 2026", "accion": "BANCO PICHINCHA", "broker": "MERCAPITAL", "costo": 0.31, "cantidad": 500, "monto": 155.00, "comision": 10.00, "costo_total": 165.00},
+        {"id": 8, "fecha": "08 Oct 2026", "accion": "APPLE", "broker": "XTB", "costo": 189.40, "cantidad": 2, "monto": 378.80, "comision": 3.50, "costo_total": 382.30},
+        {"id": 9, "fecha": "30 Sep 2026", "accion": "CORPORACION FAVORITA C.A", "broker": "MERCAPITAL", "costo": 2.07, "cantidad": 150, "monto": 310.50, "comision": 12.00, "costo_total": 322.50},
+        {"id": 10, "fecha": "23 Sep 2026", "accion": "ETF S&P 500", "broker": "XTB", "costo": 512.10, "cantidad": 1, "monto": 512.10, "comision": 0.00, "costo_total": 512.10},
+        {"id": 11, "fecha": "16 Sep 2026", "accion": "MICROSOFT", "broker": "XTB", "costo": 402.75, "cantidad": 1, "monto": 402.75, "comision": 3.50, "costo_total": 406.25},
+        {"id": 12, "fecha": "09 Sep 2026", "accion": "BANCO DEL AUSTRO", "broker": "MERCAPITAL", "costo": 0.52, "cantidad": 400, "monto": 208.00, "comision": 10.00, "costo_total": 218.00},
+        {"id": 13, "fecha": "26 Ago 2026", "accion": "NVIDIA", "broker": "XTB", "costo": 118.60, "cantidad": 3, "monto": 355.80, "comision": 3.50, "costo_total": 359.30},
+        {"id": 14, "fecha": "18 Ago 2026", "accion": "FONDO DE INVERSIÓN COTIZADO ETF", "broker": "MERCAPITAL", "costo": 1.06, "cantidad": 200, "monto": 212.00, "comision": 10.00, "costo_total": 222.00},
+        {"id": 15, "fecha": "06 Ago 2026", "accion": "AMAZON", "broker": "XTB", "costo": 176.20, "cantidad": 2, "monto": 352.40, "comision": 3.50, "costo_total": 355.90},
     ])
     
     categorias = ListProperty(["Alimentación", "Transporte", "Vivienda", "Salud", "Ocio", "Servicios", "Entretenimiento"])
@@ -127,7 +191,7 @@ class EstadoAplicacion(EventDispatcher):
         for p in self.presupuestos:
             if p["categoria"].lower() == categoria.lower():
                 copia = dict(p)
-                copia["gastado"] += monto
+                copia["gastado"] = max(0.0, copia["gastado"] + monto)
                 pct = int((copia["gastado"] / copia["limite"]) * 100) if copia["limite"] > 0 else 0
                 copia["porcentaje"] = pct
                 if pct > 100:
@@ -143,6 +207,57 @@ class EstadoAplicacion(EventDispatcher):
             else:
                 actualizados.append(p)
         self.presupuestos = actualizados
+
+    # ------------------------------------------------------------------ edición
+    def editar_gasto(self, id_gasto, descripcion, monto, categoria, metodo, fecha):
+        """Guarda los cambios de un gasto. El total y los presupuestos del mes solo se ajustan si el gasto cae en el mes actual."""
+        viejo = next((g for g in self.gastos if g["id"] == id_gasto), None)
+        if viejo is None:
+            return False
+        nuevo = dict(viejo, descripcion=descripcion, monto=float(monto), categoria=categoria, metodo=metodo, fecha=fecha)
+        if en_mes_actual(viejo["fecha"]):
+            self.total_gastado -= viejo["monto"]
+            self._recalcular_presupuesto(viejo["categoria"], -viejo["monto"])
+        if en_mes_actual(nuevo["fecha"]):
+            self.total_gastado += nuevo["monto"]
+            self._recalcular_presupuesto(nuevo["categoria"], nuevo["monto"])
+        self.gastos = [nuevo if g["id"] == id_gasto else g for g in self.gastos]
+        return True
+
+    def editar_ingreso(self, id_ingreso, descripcion, monto, categoria, metodo, fecha):
+        """Guarda los cambios de un ingreso. Los totales del mes solo se ajustan si el ingreso cae en el mes actual."""
+        viejo = next((i for i in self.ingresos if i["id"] == id_ingreso), None)
+        if viejo is None:
+            return False
+        nuevo = dict(viejo, descripcion=descripcion, monto=float(monto), categoria=categoria, metodo=metodo, fecha=fecha)
+        if en_mes_actual(viejo["fecha"]):
+            self.total_ingresado -= viejo["monto"]
+            self.ingreso_mes_actual -= viejo["monto"]
+        if en_mes_actual(nuevo["fecha"]):
+            self.total_ingresado += nuevo["monto"]
+            self.ingreso_mes_actual += nuevo["monto"]
+        self.ingresos = [nuevo if i["id"] == id_ingreso else i for i in self.ingresos]
+        return True
+
+    def editar_inversion_fija(self, id_inversion, **campos):
+        self.inversiones_renta_fija = [dict(i, **campos) if i["id"] == id_inversion else i for i in self.inversiones_renta_fija]
+
+    def editar_inversion_variable(self, id_inversion, **campos):
+        self.inversiones_renta_variable = [dict(i, **campos) if i["id"] == id_inversion else i for i in self.inversiones_renta_variable]
+
+    # ---------------------------------------------------------------- categorías
+    def existe_categoria(self, nombre):
+        return any(c.lower() == nombre.strip().lower() for c in self.categorias)
+
+    def agregar_categoria(self, nombre, limite=0.0):
+        """Agrega la categoría y, si trae un límite mensual, crea también su presupuesto."""
+        nombre = nombre.strip()
+        if not nombre or self.existe_categoria(nombre):
+            return False
+        self.categorias.append(nombre)
+        if limite and float(limite) > 0:
+            self.agregar_presupuesto(nombre, limite, nombre)
+        return True
 
     def actualizar_perfil(self, nombre, correo, telefono):
         u = dict(self.usuario_actual)

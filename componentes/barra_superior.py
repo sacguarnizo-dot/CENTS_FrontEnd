@@ -12,6 +12,8 @@ from kivy.graphics import Color, RoundedRectangle, Line
 from kivy.properties import StringProperty, ObjectProperty
 from kivymd.icon_definitions import md_icons
 from tema import tema
+from iconos import con_icono
+from efectos import aplicar_efecto_boton
 from estado_app import estado
 from componentes.tarjetas import AvatarCircular
 
@@ -59,6 +61,7 @@ class BotonCapsulaPerfil(ButtonBehavior, BoxLayout):
         self.bind(pos=self._actualizar_fondo, size=self._actualizar_fondo)
         tema.bind(modo=self._actualizar_fondo)
         estado.bind(usuario_actual=self._actualizar_datos_usuario)
+        aplicar_efecto_boton(self, radio=21)
         self._actualizar_fondo()
         
     def _actualizar_fondo(self, *args):
@@ -172,7 +175,8 @@ class BarraSuperior(BoxLayout):
         
         # Botón contextual de acción (ej. + Nuevo gasto / + Nuevo ingreso)
         self.btn_accion = Button(
-            text="＋ Nuevo",
+            text=con_icono("Nuevo", "plus-circle-outline"),
+            markup=True,
             font_size="13sp",
             bold=True,
             color=[1, 1, 1, 1],
@@ -185,6 +189,7 @@ class BarraSuperior(BoxLayout):
         )
         self.btn_accion.bind(pos=lambda w, *a: self._redibujar_btn_accion(w), size=lambda w, *a: self._redibujar_btn_accion(w), state=lambda w, *a: self._redibujar_btn_accion(w))
         self.btn_accion.bind(on_release=lambda *a: self.manejar_accion())
+        self.btn_accion.efecto_sobre_primario = True
         caja_derecha.add_widget(self.btn_accion)
         self.btn_accion.opacity = 0
         self.btn_accion.disabled = True

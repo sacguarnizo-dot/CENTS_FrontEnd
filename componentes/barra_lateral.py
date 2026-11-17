@@ -13,6 +13,8 @@ from kivy.graphics import Color, RoundedRectangle, Rectangle, Line
 from kivy.properties import StringProperty, BooleanProperty, ObjectProperty
 from kivymd.icon_definitions import md_icons
 from tema import tema
+from iconos import con_icono
+from efectos import aplicar_efecto_boton
 from estado_app import estado
 from componentes.tarjetas import AvatarCircular
 
@@ -58,6 +60,7 @@ class BotonElementoMenu(ButtonBehavior, BoxLayout):
         self.add_widget(self.lbl)
         
         self.bind(pos=self._actualizar_fondo, size=self._actualizar_fondo, state=self._actualizar_fondo, activo=self._actualizar_fondo)
+        aplicar_efecto_boton(self, radio=8)
         tema.bind(modo=self._actualizar_fondo)
         self._actualizar_fondo()
         
@@ -213,7 +216,8 @@ class MenuLateral(BoxLayout):
         self.tarjeta_consejo.add_widget(self.txt_consejo)
         
         self.btn_ver_consejos = Button(
-            text="Ver consejos →",
+            text=con_icono("Ver consejos", "eye-outline", derecha=True),
+            markup=True,
             font_size="12sp",
             bold=True,
             color=tema.primario,

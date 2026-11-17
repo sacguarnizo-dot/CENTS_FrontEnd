@@ -41,11 +41,13 @@ from kivy.uix.screenmanager import ScreenManager, FadeTransition
 
 from tema import tema
 from estado_app import estado
+from efectos import instalar_efectos
 from pantallas.pantallas_autenticacion import PantallaLogin, PantallaRegistro, PantallaRecuperarContrasena
 from pantallas.portal_principal import PantallaPortalPrincipal
 
 class AplicacionCents(MDApp):
     def build(self):
+        instalar_efectos()  # hover/pulsacion animados en todos los botones (antes de crear widgets)
         self.title = "CENTS - Finanzas Bajo Control"
         self.theme_cls.theme_style = "Light"
         self.theme_cls.primary_palette = "Blue"

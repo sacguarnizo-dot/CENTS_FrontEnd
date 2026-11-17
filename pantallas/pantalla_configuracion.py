@@ -3,6 +3,8 @@ CENTS - Pantalla de Configuración
 Pestañas de Mi Perfil, Preferencias, Moneda, Idioma y conmutador reactivo de Modo Claro y Oscuro.
 """
 
+from kivy.animation import Animation
+from kivy.clock import Clock
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.label import Label
@@ -12,7 +14,15 @@ from kivy.graphics import Color, RoundedRectangle, Line
 from kivy.properties import BooleanProperty
 from tema import tema
 from estado_app import estado
+from iconos import con_icono
+from efectos import aplicar_efecto_boton
 from componentes.tarjetas import TarjetaBase, BotonPrimario, EntradaTexto, AvatarCircular, BotonPildora
+from pantallas.paneles_configuracion import PanelNotificaciones, PanelSeguridad, PanelPrivacidad
+
+# Opciones de apariencia (texto + icono). Se comparan por igualdad, por eso son constantes.
+TEMA_CLARO = con_icono("Claro", "weather-sunny")
+TEMA_OSCURO = con_icono("Oscuro", "weather-night")
+TEMA_SISTEMA = con_icono("Sistema", "theme-light-dark")
 
 class BotonSubPestana(ButtonBehavior, BoxLayout):
     es_activo = BooleanProperty(False)
@@ -50,6 +60,7 @@ class BotonSubPestana(ButtonBehavior, BoxLayout):
         self.add_widget(self.lbl_s)
         
         self.bind(pos=self._actualizar_fondo, size=self._actualizar_fondo, state=self._actualizar_fondo, es_activo=self._actualizar_fondo)
+        aplicar_efecto_boton(self, radio=8)
         tema.bind(modo=self._actualizar_fondo)
         self._actualizar_fondo()
         
@@ -76,11 +87,13 @@ class BotonSubPestana(ButtonBehavior, BoxLayout):
         self._actualizar_fondo()
 
 class VistaConfiguracion(ScrollView):
-    def __init__(self, **kwargs):
+    def __init__(self, al_cambiar_clave=None, al_cerrar_sesion=None, **kwargs):
         super().__init__(do_scroll_x=False, **kwargs)
+        self.al_cambiar_clave = al_cambiar_clave
+        self.al_cerrar_sesion = al_cerrar_sesion
         self.moneda_seleccionada = "USD ($)"
         self.idioma_seleccionado = "Español (ES)"
-        self.tema_seleccionado = "☀ Claro" if tema.modo == "claro" else "☾ Oscuro"
+        self.tema_seleccionado = TEMA_CLARO if tema.modo == "claro" else TEMA_OSCURO
         self.etiquetas_campo = []
         self._construir_ui()
         
@@ -94,7 +107,7 @@ class VistaConfiguracion(ScrollView):
         raiz.bind(minimum_height=raiz.setter('height'))
         
         # 1. Pestañas de subnavegación izquierda
-        tarjeta_sub = TarjetaBase(orientation="vertical", padding=[12, 12, 12, 12], spacing=4, size_hint=(None, None), width=230)
+        tarjeta_sub = TarjetaBase(orientation="vertical", padding=[12, 12, 12, 12], spacing=4, size_hint=(None, None), width=230, pos_hint={"top": 1})
         tarjeta_sub.bind(minimum_height=tarjeta_sub.setter('height'))
         
         pestanas = [
@@ -185,6 +198,7 @@ class VistaConfiguracion(ScrollView):
         
         # Moneda e Idioma con BotonPildora
         fila_pildoras = BoxLayout(orientation="horizontal", spacing=16, size_hint_y=None, height=66)
+        self.fila_pildoras = fila_pildoras
         
         col_mon = BoxLayout(orientation="vertical", spacing=6)
         col_mon.add_widget(self._crear_etiqueta("MONEDA"))
@@ -226,8 +240,8 @@ class VistaConfiguracion(ScrollView):
         
         fila_tema = BoxLayout(orientation="horizontal", spacing=12, size_hint_y=None, height=40)
         self.botones_tema = []
-        for opt in ["☀ Claro", "☾ Oscuro", "◐ Sistema"]:
-            b = BotonPildora(texto=opt, activo=(opt == self.tema_seleccionado), size_hint_x=0.33)
+        for opt in [TEMA_CLARO, TEMA_OSCURO, TEMA_SISTEMA]:
+            b = BotonPildora(texto=opt, markup=True, activo=(opt == self.tema_seleccionado), size_hint_x=0.33)
             b.bind(on_release=lambda btn, t=opt: self._seleccionar_tema(t))
             self.botones_tema.append((b, opt))
             fila_tema.add_widget(b)
@@ -239,7 +253,18 @@ class VistaConfiguracion(ScrollView):
         self.btn_guardar.bind(on_release=lambda *a: self.guardar())
         contenido_der.add_widget(self.btn_guardar)
         
-        raiz.add_widget(contenido_der)
+        # Paneles de cada pestaña: se muestra uno a la vez a la derecha del menú
+        self.paneles = {
+            "Mi perfil": contenido_der,
+            "Preferencias": contenido_der,
+            "Notificaciones": PanelNotificaciones(),
+            "Seguridad": PanelSeguridad(al_cambiar_clave=self.al_cambiar_clave, al_cerrar_sesion=self.al_cerrar_sesion),
+            "Privacidad": PanelPrivacidad(),
+        }
+        self.zona_der = BoxLayout(orientation="vertical", size_hint_y=None)
+        self.zona_der.bind(minimum_height=self.zona_der.setter('height'))
+        self.zona_der.add_widget(contenido_der)
+        raiz.add_widget(self.zona_der)
         self.add_widget(raiz)
         
     def _crear_etiqueta(self, texto):
@@ -251,6 +276,43 @@ class VistaConfiguracion(ScrollView):
     def _seleccionar_subpestana(self, titulo):
         for btn in self.botones_subpestanas:
             btn.es_activo = (btn.titulo_tab == titulo)
+        panel = self.paneles[titulo]
+        if panel.parent is not self.zona_der:
+            self.zona_der.clear_widgets()
+            self.zona_der.add_widget(panel)
+        if titulo == "Preferencias":
+            # Se baja hasta Apariencia y se iluminan los bordes de Moneda/Idioma y Apariencia
+            Clock.schedule_once(lambda dt: self._mostrar_preferencias(), 0.1)
+        else:
+            self.scroll_y = 1
+            
+    def _mostrar_preferencias(self):
+        self.scroll_to(self.tarjeta2, padding=24, animate=True)
+        self._pulsar(self.fila_pildoras, radio=10, margen=6)
+        self._pulsar(self.tarjeta2, radio=12, margen=0)
+        
+    def _pulsar(self, widget, radio=12, margen=4):
+        """Ilumina el borde de un widget con un destello breve (dos pulsos) y luego lo quita."""
+        if getattr(widget, "_pulsando", False):
+            return
+        widget._pulsando = True
+        with widget.canvas.after:
+            color = Color(*tema.primario[:3], 0)
+            borde = Line(rounded_rectangle=(widget.x, widget.y, widget.width, widget.height, radio), width=2.2)
+            
+        def geometria(*a):
+            borde.rounded_rectangle = (widget.x - margen, widget.y - margen, widget.width + 2 * margen, widget.height + 2 * margen, radio)
+        geometria()
+        widget.bind(pos=geometria, size=geometria)
+        
+        def terminar(*a):
+            widget.unbind(pos=geometria, size=geometria)
+            widget.canvas.after.remove(color)
+            widget.canvas.after.remove(borde)
+            widget._pulsando = False
+        anim = (Animation(a=0.95, d=0.25) + Animation(a=0.2, d=0.3) + Animation(a=0.95, d=0.25) + Animation(a=0, d=0.8))
+        anim.bind(on_complete=terminar)
+        anim.start(color)
             
     def _redibujar_btn_contorno(self, w):
         w.canvas.before.clear()
@@ -289,7 +351,7 @@ class VistaConfiguracion(ScrollView):
             b.activo = (t == opcion_tema)
             
     def actualizar_tema(self, *args):
-        self.tema_seleccionado = "☾ Oscuro" if tema.modo == "oscuro" else "☀ Claro"
+        self.tema_seleccionado = TEMA_OSCURO if tema.modo == "oscuro" else TEMA_CLARO
         for b in self.botones_subpestanas:
             b.actualizar_tema()
         self.lbl_c1_t.color = tema.texto_principal
@@ -314,6 +376,8 @@ class VistaConfiguracion(ScrollView):
             b.activo = (t == self.tema_seleccionado)
             b._actualizar_fondo()
         self.btn_guardar._actualizar_fondo()
+        for nombre in ("Notificaciones", "Seguridad", "Privacidad"):
+            self.paneles[nombre].actualizar_tema()
         
     def guardar(self):
         nombre_completo = self.in_nombre.text.strip() or "Steven Guarnizo"

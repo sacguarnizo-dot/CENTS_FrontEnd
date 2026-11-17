@@ -17,7 +17,10 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.behaviors import ButtonBehavior
 from kivy.graphics import Color, RoundedRectangle, Ellipse, Line
 from kivy.properties import ListProperty, StringProperty, BooleanProperty, NumericProperty
+from kivy.animation import Animation
 from tema import tema
+from efectos import gestor_hover
+from iconos import glifo
 
 class AvatarCircular(BoxLayout):
     """Avatar circular centrado que actualiza su elipse reactivamente con su pos y size."""
@@ -79,6 +82,7 @@ class BotonPildora(Button):
         super().__init__(text=texto, **kwargs)
         self.activo = activo
         self.font_size = "12sp"
+        self.efecto_sobre_primario = lambda: self.activo
         self.bold = True
         
         self.bind(pos=self._actualizar_fondo, size=self._actualizar_fondo, state=self._actualizar_fondo, activo=self._actualizar_fondo)
@@ -117,8 +121,12 @@ class BotonPildora(Button):
 
 class EntradaTexto(TextInput):
     """
-    Campo de texto interactivo con foco visual acentuado, cursor azul,
-    soporte completo de teclado, placeholder y adaptación a tema oscuro/claro.
+    Campo de texto interactivo con el estilo de CENTS.
+
+    - Reposo: fondo y borde suaves.
+    - Hover (mouse encima): el borde se tiñe hacia el azul primario y aparece un halo tenue.
+    - Foco (escribiendo): borde azul mas grueso, fondo limpio y halo mas visible.
+    Todas las transiciones se animan (~0.16 s).
     """
     def __init__(self, **kwargs):
         kwargs.setdefault('multiline', False)
@@ -129,6 +137,7 @@ class EntradaTexto(TextInput):
         kwargs.setdefault('cursor_width', 2)
         kwargs.setdefault('write_tab', False)
         super().__init__(**kwargs)
+
         self.background_active = ""
         self.background_normal = ""
         self.background_color = [0, 0, 0, 0]
@@ -136,41 +145,72 @@ class EntradaTexto(TextInput):
         self.cursor_color = tema.primario
         self.foreground_color = tema.texto_principal
         self.hint_text_color = tema.texto_placeholder
-        
+        self._hover = False
+
         with self.canvas.before:
+            # Halo de foco/hover: se dibuja primero para quedar por debajo del campo
+            self._color_halo = Color(*tema.primario[:3], 0)
+            self._line_halo = Line(rounded_rectangle=(self.x - 1, self.y - 1, self.width + 2, self.height + 2, 9), width=3.5)
             self._color_fondo = Color(*tema.fondo_entrada)
             self._rect_fondo = RoundedRectangle(pos=self.pos, size=self.size, radius=[8])
             self._color_borde = Color(*tema.borde)
             self._line_borde = Line(rounded_rectangle=(self.x, self.y, self.width, self.height, 8), width=1)
-            
+
         self.bind(pos=self._actualizar_geometria, size=self._actualizar_geometria, focus=self._actualizar_foco)
         tema.bind(modo=self._al_cambiar_tema)
-        
+        self._objetivo_hover = gestor_hover.registrar(self, self._al_hover, "ibeam")
+        self._aplicar_estado(animar=False)
+
     def _actualizar_geometria(self, *args):
         self._rect_fondo.pos = self.pos
         self._rect_fondo.size = self.size
         self._line_borde.rounded_rectangle = (self.x, self.y, self.width, self.height, 8)
-        
+        self._line_halo.rounded_rectangle = (self.x - 1, self.y - 1, self.width + 2, self.height + 2, 9)
+
+    def _al_hover(self, dentro):
+        self._hover = dentro
+        self._aplicar_estado(animar=True)
+
     def _actualizar_foco(self, *args):
-        if self.focus:
-            self._color_borde.rgba = tema.primario
-            self._line_borde.width = 1.6
-            if tema.modo == "oscuro":
-                self._color_fondo.rgba = [0.09, 0.13, 0.20, 1]
-            else:
-                self._color_fondo.rgba = [1.0, 1.0, 1.0, 1]
-        else:
-            self._color_borde.rgba = tema.borde
-            self._line_borde.width = 1.0
-            self._color_fondo.rgba = tema.fondo_entrada
-            
+        self._aplicar_estado(animar=True)
+
     def _al_cambiar_tema(self, *args):
         self.foreground_color = tema.texto_principal
         self.hint_text_color = tema.texto_placeholder
         self.cursor_color = tema.primario
-        self._color_fondo.rgba = tema.fondo_entrada
-        self._color_borde.rgba = tema.borde
-        self._actualizar_foco()
+        self._aplicar_estado(animar=False)
+
+    @staticmethod
+    def _mezclar(a, b, t):
+        return [a[i] + (b[i] - a[i]) * t for i in range(4)]
+
+    def _objetivos_visuales(self):
+        """Devuelve (borde, grosor, fondo, alfa_halo) segun el estado actual."""
+        oscuro = tema.modo == "oscuro"
+        if self.focus:
+            fondo = [0.09, 0.13, 0.20, 1] if oscuro else [1, 1, 1, 1]
+            return list(tema.primario), 1.8, fondo, 0.22
+        if self._hover:
+            fondo = [0.085, 0.12, 0.19, 1] if oscuro else [1, 1, 1, 1]
+            return self._mezclar(tema.borde, tema.primario, 0.6), 1.3, fondo, 0.09
+        return list(tema.borde), 1.0, list(tema.fondo_entrada), 0.0
+
+    def _aplicar_estado(self, animar=True):
+        borde, grosor, fondo, halo = self._objetivos_visuales()
+        self._color_halo.rgb = tuple(tema.primario[:3])
+        if animar:
+            for instr in (self._color_borde, self._color_fondo, self._color_halo, self._line_borde):
+                Animation.cancel_all(instr)
+            Animation(rgba=borde, d=0.16, t="out_quad").start(self._color_borde)
+            Animation(rgba=fondo, d=0.16, t="out_quad").start(self._color_fondo)
+            Animation(a=halo, d=0.16, t="out_quad").start(self._color_halo)
+            Animation(width=grosor, d=0.16, t="out_quad").start(self._line_borde)
+        else:
+            self._color_borde.rgba = borde
+            self._color_fondo.rgba = fondo
+            self._color_halo.a = halo
+            self._line_borde.width = grosor
+
 
 # Alias de compatibilidad
 EntradaEstilizada = EntradaTexto
@@ -206,7 +246,7 @@ class BadgeEstado(BoxLayout):
         self.texto = texto
         self.tipo_badge = tipo_badge
         
-        self.etiqueta = Label(text=self.texto, font_size="11sp", bold=True, size_hint=(None, 1))
+        self.etiqueta = Label(text=self.texto, markup=True, font_size="11sp", bold=True, size_hint=(None, 1))
         self.etiqueta.bind(texture_size=lambda *a: setattr(self.etiqueta, 'width', self.etiqueta.texture_size[0]))
         self.etiqueta.bind(width=lambda *a: setattr(self, 'width', self.etiqueta.width + 20))
         self.add_widget(self.etiqueta)
@@ -401,6 +441,7 @@ class BotonPrimario(Button):
         kwargs.setdefault('background_color', [0, 0, 0, 0])
         super().__init__(**kwargs)
         self.font_size = "14sp"
+        self.efecto_sobre_primario = lambda: not self.es_contorno
         self.bold = True
         self.bind(pos=self._actualizar_fondo, size=self._actualizar_fondo, state=self._actualizar_fondo)
         tema.bind(modo=self._actualizar_fondo)
@@ -425,3 +466,27 @@ class BotonPrimario(Button):
                     Color(*tema.primario)
                 RoundedRectangle(pos=self.pos, size=self.size, radius=self.radio)
                 self.color = [1, 1, 1, 1]
+
+
+class InsigniaIcono(Label):
+    """Icono de Material Design sobre un cuadro redondeado, para adornar consejos y secciones."""
+    def __init__(self, nombre_icono, tam=40, relleno=False, **kwargs):
+        super().__init__(text=glifo(nombre_icono), font_name="Icons", font_size=tam * 0.52,
+                         size_hint=(None, None), size=(tam, tam), **kwargs)
+        self.relleno = relleno
+        self.bind(pos=self._dibujar, size=self._dibujar)
+        tema.bind(modo=self._dibujar)
+        self._dibujar()
+
+    def _dibujar(self, *args):
+        self.color = [1, 1, 1, 1] if self.relleno else tema.primario
+        self.canvas.before.clear()
+        with self.canvas.before:
+            if self.relleno:
+                Color(*tema.primario)
+                RoundedRectangle(pos=self.pos, size=self.size, radius=[self.width * 0.28])
+            else:
+                Color(*tema.fondo_resaltado)
+                RoundedRectangle(pos=self.pos, size=self.size, radius=[self.width * 0.28])
+                Color(*tema.borde)
+                Line(rounded_rectangle=(self.x, self.y, self.width, self.height, self.width * 0.28), width=1)

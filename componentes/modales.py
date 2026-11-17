@@ -21,7 +21,33 @@ from kivy.uix.widget import Widget
 from kivy.graphics import Color, RoundedRectangle, Line
 from tema import tema
 from estado_app import estado
-from componentes.tarjetas import EntradaTexto, EntradaEstilizada, BotonPrimario
+from componentes.tarjetas import EntradaTexto, EntradaEstilizada, BotonPrimario, InsigniaIcono
+from iconos import con_icono
+
+def _selector_categorias(modal):
+    """Píldoras con las categorías de la app (incluye las que crea el usuario), en filas de 4."""
+    categorias = list(estado.categorias) or [modal.categoria_seleccionada]
+    if modal.categoria_seleccionada not in categorias:
+        modal.categoria_seleccionada = categorias[0]
+    modal.botones_cat = []
+    filas = (len(categorias) + 3) // 4
+    caja = BoxLayout(orientation="vertical", spacing=6, size_hint_y=None, height=filas * 36 + (filas - 1) * 6)
+    for i in range(0, len(categorias), 4):
+        grupo = categorias[i:i + 4]
+        fila = BoxLayout(orientation="horizontal", spacing=6, size_hint_y=None, height=36)
+        for cat in grupo:
+            b = Button(text=cat, font_size="11sp", background_color=[0, 0, 0, 0], bold=True)
+            modal._estilizar_pildora(b, activo=(cat == modal.categoria_seleccionada))
+            b.bind(on_release=lambda btn, c=cat: modal._seleccionar_cat(c))
+            b.bind(pos=lambda w, *a, c=cat: modal._estilizar_pildora(w, c == modal.categoria_seleccionada),
+                   size=lambda w, *a, c=cat: modal._estilizar_pildora(w, c == modal.categoria_seleccionada))
+            modal.botones_cat.append((b, cat))
+            fila.add_widget(b)
+        for _ in range(4 - len(grupo)):
+            fila.add_widget(Widget())
+        caja.add_widget(fila)
+    return caja
+
 
 class ModalNuevoGasto(ModalView):
     def __init__(self, al_guardar=None, **kwargs):
@@ -71,15 +97,7 @@ class ModalNuevoGasto(ModalView):
         
         # CATEGORÍA
         formulario.add_widget(self._crear_etiqueta("CATEGORÍA"))
-        caja_cat = BoxLayout(orientation="horizontal", spacing=6, size_hint_y=None, height=36)
-        self.botones_cat = []
-        for cat in ["Alimentación", "Transporte", "Servicios", "Vivienda", "Salud"]:
-            b = Button(text=cat, font_size="11sp", background_color=[0, 0, 0, 0], bold=True)
-            self._estilizar_pildora(b, activo=(cat == self.categoria_seleccionada))
-            b.bind(on_release=lambda btn, c=cat: self._seleccionar_cat(c))
-            self.botones_cat.append((b, cat))
-            caja_cat.add_widget(b)
-        formulario.add_widget(caja_cat)
+        formulario.add_widget(_selector_categorias(self))
         
         # MÉTODO DE PAGO
         formulario.add_widget(self._crear_etiqueta("MÉTODO DE PAGO"))
@@ -105,7 +123,8 @@ class ModalNuevoGasto(ModalView):
         
         # Adjuntar comprobante
         btn_adjuntar = Button(
-            text="＋ Adjuntar comprobante  (PNG, JPG o PDF)",
+            text=con_icono("Adjuntar comprobante  (PNG, JPG o PDF)", "paperclip"),
+            markup=True,
             font_size="12sp",
             color=tema.primario,
             background_color=[0, 0, 0, 0],
@@ -416,15 +435,7 @@ class ModalNuevoPresupuesto(ModalView):
         formulario.add_widget(self.in_nombre)
         
         formulario.add_widget(self._crear_etiqueta("CATEGORÍA"))
-        caja_cat = BoxLayout(orientation="horizontal", spacing=6, size_hint_y=None, height=36)
-        self.botones_cat = []
-        for cat in ["Alimentación", "Transporte", "Vivienda", "Salud", "Ocio"]:
-            b = Button(text=cat, font_size="11sp", background_color=[0, 0, 0, 0], bold=True)
-            self._estilizar_pildora(b, activo=(cat == self.categoria_seleccionada))
-            b.bind(on_release=lambda btn, c=cat: self._seleccionar_cat(c))
-            self.botones_cat.append((b, cat))
-            caja_cat.add_widget(b)
-        formulario.add_widget(caja_cat)
+        formulario.add_widget(_selector_categorias(self))
         
         fila_campos = BoxLayout(orientation="horizontal", spacing=12, size_hint_y=None, height=64)
         col_per = BoxLayout(orientation="vertical", spacing=4)
@@ -548,7 +559,7 @@ class ModalConsejos(ModalView):
     def __init__(self, **kwargs):
         super().__init__(
             size_hint=(None, None),
-            size=(540, 520),
+            size=(540, 570),
             auto_dismiss=True,
             background_color=[0, 0, 0, 0.55],
             **kwargs
@@ -571,17 +582,16 @@ class ModalConsejos(ModalView):
         encabezado.add_widget(lbl_sub)
         tarjeta.add_widget(encabezado)
         
-        caja_consejo = BoxLayout(orientation="vertical", padding=[16, 14, 16, 14], spacing=6, size_hint_y=None, height=105)
-        with caja_consejo.canvas.before:
-            Color(*tema.fondo_resaltado)
-            RoundedRectangle(pos=caja_consejo.pos, size=caja_consejo.size, radius=[10])
-            Color(*tema.borde)
-            Line(rounded_rectangle=(caja_consejo.x, caja_consejo.y, caja_consejo.width, caja_consejo.height, 10), width=1)
+        caja_consejo = BoxLayout(orientation="horizontal", padding=[16, 14, 16, 14], spacing=14, size_hint_y=None, height=104)
         caja_consejo.bind(pos=lambda w, *a: self._redibujar_caja_consejo(w), size=lambda w, *a: self._redibujar_caja_consejo(w))
+        self._redibujar_caja_consejo(caja_consejo)
         
+        caja_consejo.add_widget(InsigniaIcono("lightbulb-on-outline", tam=46, relleno=True, pos_hint={"center_y": 0.5}))
+        
+        col_dia = BoxLayout(orientation="vertical", spacing=4)
         lbl_dia_t = Label(text="[b]CONSEJO DEL DÍA[/b]", markup=True, font_size="11sp", color=tema.primario, size_hint_y=None, height=18, halign="left")
         lbl_dia_t.bind(size=lbl_dia_t.setter('text_size'))
-        caja_consejo.add_widget(lbl_dia_t)
+        col_dia.add_widget(lbl_dia_t)
         
         lbl_dia_cuerpo = Label(
             text="Revisa tus gastos cada semana para mantener tu presupuesto.\nPequeñas revisiones periódicas evitan sorpresas a fin de mes.",
@@ -591,7 +601,8 @@ class ModalConsejos(ModalView):
             valign="top"
         )
         lbl_dia_cuerpo.bind(size=lbl_dia_cuerpo.setter('text_size'))
-        caja_consejo.add_widget(lbl_dia_cuerpo)
+        col_dia.add_widget(lbl_dia_cuerpo)
+        caja_consejo.add_widget(col_dia)
         tarjeta.add_widget(caja_consejo)
         
         lbl_mas = Label(text="MÁS RECOMENDACIONES", font_size="11sp", bold=True, color=tema.texto_atenuado, size_hint_y=None, height=20, halign="left")
@@ -599,28 +610,17 @@ class ModalConsejos(ModalView):
         tarjeta.add_widget(lbl_mas)
         
         lista_rec = [
-            ("Automatiza tu ahorro", "Aparta un monto fijo apenas recibas tus ingresos.", "$"),
-            ("Controla los gastos hormiga", "Identifica pequeños consumos diarios que suman al final del mes.", "$"),
-            ("Crea un fondo de emergencia", "Procura destinar un pequeño porcentaje para imprevistos.", "$")
+            ("Automatiza tu ahorro", "Aparta un monto fijo apenas recibas tus ingresos.", "piggy-bank-outline"),
+            ("Controla los gastos hormiga", "Identifica pequeños consumos diarios que suman al final del mes.", "magnify"),
+            ("Crea un fondo de emergencia", "Procura destinar un pequeño porcentaje para imprevistos.", "shield-check-outline")
         ]
         
         caja_rec = BoxLayout(orientation="vertical", spacing=10, size_hint_y=None)
         caja_rec.bind(minimum_height=caja_rec.setter('height'))
         
-        for titulo, desc, icono in lista_rec:
-            fila = BoxLayout(orientation="horizontal", spacing=12, size_hint_y=None, height=44)
-            
-            caja_icono = Widget(size_hint=(None, None), size=(32, 32), pos_hint={"center_y": 0.5})
-            with caja_icono.canvas:
-                Color(*tema.fondo_sutil)
-                RoundedRectangle(pos=caja_icono.pos, size=caja_icono.size, radius=[8])
-            lbl_icono = Label(text=f"[b]{icono}[/b]", markup=True, font_size="14sp", color=tema.primario, size_hint=(None, None), size=(32, 32), pos_hint={"center_y": 0.5})
-            
-            from kivy.uix.floatlayout import FloatLayout
-            fl = FloatLayout(size_hint=(None, None), size=(32, 32), pos_hint={"center_y": 0.5})
-            fl.add_widget(caja_icono)
-            fl.add_widget(lbl_icono)
-            fila.add_widget(fl)
+        for titulo, desc, nombre_icono in lista_rec:
+            fila = BoxLayout(orientation="horizontal", spacing=14, size_hint_y=None, height=48)
+            fila.add_widget(InsigniaIcono(nombre_icono, tam=40, pos_hint={"center_y": 0.5}))
             
             col_txt = BoxLayout(orientation="vertical", spacing=2)
             lbl_rt = Label(text=f"[b]{titulo}[/b]", markup=True, font_size="13sp", color=tema.texto_principal, halign="left")

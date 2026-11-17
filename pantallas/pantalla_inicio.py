@@ -11,6 +11,7 @@ from kivy.properties import ObjectProperty
 from kivy.graphics import Color, RoundedRectangle, Line
 from tema import tema
 from estado_app import estado
+from iconos import con_icono
 from componentes.tarjetas import TarjetaBase, TarjetaMetrica
 from componentes.graficos import ContenedorGraficoDonut, WidgetGraficoBarras
 
@@ -20,7 +21,7 @@ class VistaInicio(ScrollView):
     def __init__(self, **kwargs):
         super().__init__(do_scroll_x=False, **kwargs)
         self._construir_ui()
-        estado.bind(total_gastado=self.actualizar_datos)
+        estado.bind(total_gastado=self.actualizar_datos, presupuesto_total=self.actualizar_datos, gastos=self.actualizar_datos)
         
     def _construir_ui(self):
         contenedor = BoxLayout(
@@ -37,7 +38,7 @@ class VistaInicio(ScrollView):
         self.tarjeta1 = TarjetaMetrica(
             titulo="Total gastado",
             valor=f"$ {estado.total_gastado:,.2f}",
-            texto_badge="↑ 8.2% vs. mes anterior",
+            texto_badge=con_icono("8.2% vs. mes anterior", "trending-up"),
             es_positivo=True
         )
         self.tarjeta2 = TarjetaMetrica(
@@ -114,7 +115,8 @@ class VistaInicio(ScrollView):
         enc_t.add_widget(self.lbl_tt)
         
         self.btn_ver_todos = Button(
-            text="Ver todos →",
+            text=con_icono("Ver todos", "arrow-right", derecha=True),
+            markup=True,
             font_size="13sp",
             bold=True,
             color=tema.primario,
@@ -203,6 +205,9 @@ class VistaInicio(ScrollView):
             Line(points=[w.x, w.y, w.x + w.width, w.y], width=1)
             
     def actualizar_datos(self, *args):
+        self.tarjeta1.actualizar_valor(f"$ {estado.total_gastado:,.2f}")
+        self.tarjeta2.actualizar_valor(f"$ {estado.presupuesto_total - estado.total_gastado:,.2f}")
+        self.tarjeta2.lbl_sub.text = f"De $ {estado.presupuesto_total:,.2f}"
         self._cargar_filas()
         
     def actualizar_tema(self, *args):

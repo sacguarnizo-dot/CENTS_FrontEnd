@@ -9,6 +9,7 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.graphics import Color, Rectangle
 from tema import tema
 from estado_app import estado
+from iconos import con_icono
 from componentes.barra_lateral import MenuLateral
 from componentes.barra_superior import BarraSuperior
 from componentes.modales import ModalNuevoGasto, ModalNuevoIngreso, ModalConsejos
@@ -56,16 +57,20 @@ class PantallaPortalPrincipal(Screen):
         self.add_widget(self.raiz)
         
         # Instanciar todas las vistas
+        self._origen_clave = "perfil"  # a dónde volver después de cambiar la contraseña
         self.vistas = {
             "inicio": VistaInicio(al_ver_todos_los_gastos=lambda: self.navegar_a("gastos")),
             "ingresos": VistaIngresos(),
             "gastos": VistaGastos(),
             "presupuestos": VistaPresupuestos(),
             "inversiones": VistaInversiones(),
-            "configuracion": VistaConfiguracion(),
+            "configuracion": VistaConfiguracion(
+                al_cambiar_clave=lambda: self._abrir_cambiar_clave("configuracion"),
+                al_cerrar_sesion=self.cerrar_sesion
+            ),
             "perfil": VistaMiPerfil(
                 al_editar=lambda: self.navegar_a("editar_perfil"),
-                al_cambiar_clave=lambda: self.navegar_a("cambiar_contrasena"),
+                al_cambiar_clave=lambda: self._abrir_cambiar_clave("perfil"),
                 al_cerrar_sesion=self.cerrar_sesion,
                 al_volver=lambda: self.navegar_a("inicio")
             ),
@@ -74,8 +79,8 @@ class PantallaPortalPrincipal(Screen):
                 al_cancelar=lambda: self.navegar_a("perfil")
             ),
             "cambiar_contrasena": VistaCambiarContrasena(
-                al_actualizar=lambda: self.navegar_a("perfil"),
-                al_cancelar=lambda: self.navegar_a("perfil")
+                al_actualizar=lambda: self.navegar_a(self._origen_clave),
+                al_cancelar=lambda: self.navegar_a(self._origen_clave)
             )
         }
         
@@ -114,11 +119,11 @@ class PantallaPortalPrincipal(Screen):
             
         # Encabezados y botones de acción
         if nombre_vista == "inicio":
-            self.barra_superior.actualizar_encabezado("Panel financiero", "Resumen general de tus finanzas", texto_accion="＋ Nuevo gasto")
+            self.barra_superior.actualizar_encabezado("Panel financiero", "Resumen general de tus finanzas", texto_accion=con_icono("Nuevo gasto", "plus-circle-outline"))
         elif nombre_vista == "ingresos":
-            self.barra_superior.actualizar_encabezado("Ingresos", "Registra y analiza tus fuentes de ingresos.", texto_accion="＋ Nuevo ingreso")
+            self.barra_superior.actualizar_encabezado("Ingresos", "Registra y analiza tus fuentes de ingresos.", texto_accion=con_icono("Nuevo ingreso", "plus-circle-outline"))
         elif nombre_vista == "gastos":
-            self.barra_superior.actualizar_encabezado("Gastos", "Historial completo de tus movimientos.", texto_accion="＋ Nuevo gasto")
+            self.barra_superior.actualizar_encabezado("Gastos", "Historial completo de tus movimientos.", texto_accion=con_icono("Nuevo gasto", "plus-circle-outline"))
         elif nombre_vista == "presupuestos":
             self.barra_superior.actualizar_encabezado("Presupuestos y categorías", "Controla cuánto puedes gastar en cada área.", texto_accion=None)
         elif nombre_vista == "inversiones":
@@ -132,6 +137,10 @@ class PantallaPortalPrincipal(Screen):
         elif nombre_vista == "cambiar_contrasena":
             self.barra_superior.actualizar_encabezado("Cambiar contraseña", "Actualiza tu contraseña para mantener protegida tu cuenta.", texto_accion=None)
             
+    def _abrir_cambiar_clave(self, origen):
+        self._origen_clave = origen
+        self.navegar_a("cambiar_contrasena")
+        
     def manejar_accion_superior(self):
         if self.vista_activa_nombre in ["inicio", "gastos"]:
             dlg = ModalNuevoGasto(al_guardar=self._al_guardar_gasto)

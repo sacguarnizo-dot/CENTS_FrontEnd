@@ -15,6 +15,7 @@ from kivy.uix.checkbox import CheckBox
 from kivy.graphics import Color, Rectangle, RoundedRectangle, Ellipse
 from tema import tema
 from estado_app import estado
+from iconos import con_icono, glifo
 from componentes.tarjetas import BotonPrimario, EntradaTexto, EntradaEstilizada
 
 class BannerMarca(BoxLayout):
@@ -340,7 +341,7 @@ class PantallaRecuperarContrasena(Screen):
         with caja_icono.canvas:
             Color(0.937, 0.965, 1.0, 1)
             RoundedRectangle(pos=caja_icono.pos, size=caja_icono.size, radius=[24])
-        lbl_env = Label(text="✉", font_size="22sp", color=tema.primario, size_hint=(None, None), size=(48, 48), pos_hint={"center_x": 0.5})
+        lbl_env = Label(text=glifo("email-outline"), font_name="Icons", font_size="22sp", color=tema.primario, size_hint=(None, None), size=(48, 48), pos_hint={"center_x": 0.5})
         
         from kivy.uix.floatlayout import FloatLayout
         env_fl = FloatLayout(size_hint=(None, None), size=(48, 48), pos_hint={"center_x": 0.5})
@@ -373,7 +374,8 @@ class PantallaRecuperarContrasena(Screen):
         panel_der.add_widget(formulario)
         
         btn_volver = Button(
-            text="← Volver a iniciar sesión",
+            text=con_icono("Volver a iniciar sesión", "arrow-left"),
+            markup=True,
             font_size="13sp",
             bold=True,
             color=tema.primario,

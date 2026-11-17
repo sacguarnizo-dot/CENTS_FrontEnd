@@ -1,9 +1,11 @@
 """
 CENTS - Pantalla de Gastos
-Historial completo de gastos con filtros, búsqueda en vivo y botón para exportar historial.
+Historial completo de gastos con filtros (mes, categoría y método de pago), búsqueda en vivo,
+paginación real, edición de cada gasto y botón para exportar historial.
 Adaptado a Modo Claro y Modo Oscuro con alta legibilidad.
 """
 
+import math
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.label import Label
@@ -11,13 +13,27 @@ from kivy.uix.button import Button
 from kivy.graphics import Color, RoundedRectangle, Line
 from kivymd.icon_definitions import md_icons
 from tema import tema
-from estado_app import estado
-from componentes.tarjetas import TarjetaBase, EntradaTexto, BotonPildora
+from estado_app import estado, METODOS_GASTO
+from iconos import con_icono
+from utilidades import mes_de, nombre_mes, etiqueta_mes_menu, meses_disponibles, fecha_orden
+from componentes.tarjetas import TarjetaBase, EntradaTexto
+from componentes.menu_filtro import abrir_menu
+from componentes.paginacion import FilaPaginacion
+from componentes.modales_edicion import ModalEditarGasto
+
+TAMANO_PAGINA = 10
+ETIQUETA_MES = "Este mes"
+ETIQUETA_CATEGORIA = "Categoría"
+ETIQUETA_METODO = "Método de pago"
 
 class VistaGastos(ScrollView):
     def __init__(self, **kwargs):
         super().__init__(do_scroll_x=False, **kwargs)
         self.filtro_busqueda = ""
+        self.filtro_mes = None
+        self.filtro_categoria = None
+        self.filtro_metodo = None
+        self.pagina = 1
         self._construir_ui()
         estado.bind(gastos=self.refrescar_tabla)
         
@@ -37,7 +53,8 @@ class VistaGastos(ScrollView):
         fila_acciones.add_widget(self.lbl_info)
         
         self.btn_exportar = Button(
-            text=f"{md_icons.get('tray-arrow-down', '↓')}  Exportar historial",
+            text=con_icono("Exportar historial", "tray-arrow-down"),
+            markup=True,
             font_size="13sp",
             bold=True,
             color=tema.texto_principal,
@@ -72,13 +89,16 @@ class VistaGastos(ScrollView):
         self.in_buscar.bind(text=self._al_buscar)
         filtros.add_widget(self.in_buscar)
         
-        self.botones_filtros = [
-            self._crear_boton_filtro("Este mes ▼"),
-            self._crear_boton_filtro("Categoría ▼"),
-            self._crear_boton_filtro("Método de pago ▼")
-        ]
+        self.btn_mes = self._crear_boton_filtro()
+        self.btn_cat = self._crear_boton_filtro()
+        self.btn_met = self._crear_boton_filtro()
+        self.btn_mes.bind(on_release=lambda *a: self._abrir_menu_mes())
+        self.btn_cat.bind(on_release=lambda *a: self._abrir_menu_categoria())
+        self.btn_met.bind(on_release=lambda *a: self._abrir_menu_metodo())
+        self.botones_filtros = [self.btn_mes, self.btn_cat, self.btn_met]
         for bf in self.botones_filtros:
             filtros.add_widget(bf)
+        self._actualizar_botones_filtros()
         
         self.btn_limpiar = Button(
             text="Limpiar filtros",
@@ -112,28 +132,16 @@ class VistaGastos(ScrollView):
         self.tarjeta.add_widget(self.enc)
         self._redibujar_enc(self.enc)
         
+        # Paginación (se crea antes de cargar las filas porque estas la actualizan)
+        self.paginacion = FilaPaginacion(unidad="movimientos", tamano=TAMANO_PAGINA, al_cambiar=self._al_cambiar_pagina, tam_boton=32, alto=36, padding=[8, 8, 8, 0])
+        
         # Filas
         self.caja_filas = BoxLayout(orientation="vertical", spacing=2, size_hint_y=None)
         self.caja_filas.bind(minimum_height=self.caja_filas.setter('height'))
         self._cargar_filas()
         self.tarjeta.add_widget(self.caja_filas)
         
-        # Paginación
-        fila_pag = BoxLayout(orientation="horizontal", size_hint_y=None, height=36, padding=[8, 8, 8, 0])
-        self.lbl_p = Label(text="Mostrando 1 - 10 de 24 movimientos", font_size="12sp", color=tema.texto_atenuado, halign="left")
-        self.lbl_p.bind(size=self.lbl_p.setter('text_size'))
-        fila_pag.add_widget(self.lbl_p)
-        
-        caja_paginas = BoxLayout(orientation="horizontal", spacing=6, size_hint=(None, 1))
-        caja_paginas.bind(minimum_width=caja_paginas.setter('width'))
-        self.botones_pag = []
-        for p in ["1", "2", "3", "→"]:
-            pb = BotonPildora(texto=p, activo=(p == "1"), size_hint=(None, None), size=(32, 32))
-            self.botones_pag.append((pb, p))
-            caja_paginas.add_widget(pb)
-        fila_pag.add_widget(caja_paginas)
-        
-        self.tarjeta.add_widget(fila_pag)
+        self.tarjeta.add_widget(self.paginacion)
         contenedor.add_widget(self.tarjeta)
         self.add_widget(contenedor)
         
@@ -142,9 +150,10 @@ class VistaGastos(ScrollView):
         lbl.bind(size=lbl.setter('text_size'))
         return lbl
         
-    def _crear_boton_filtro(self, texto):
+    def _crear_boton_filtro(self):
         b = Button(
-            text=texto,
+            markup=True,
+            text="",
             font_size="12sp",
             color=tema.texto_secundario,
             background_normal="",
@@ -153,8 +162,25 @@ class VistaGastos(ScrollView):
             size_hint=(None, 1),
             width=120
         )
-        b.bind(pos=lambda w, *a: self._redibujar_btn_contorno(w), size=lambda w, *a: self._redibujar_btn_contorno(w), state=lambda w, *a: self._redibujar_btn_contorno(w))
+        b.filtro_activo = False
+        b.bind(pos=lambda w, *a: self._redibujar_btn_filtro(w), size=lambda w, *a: self._redibujar_btn_filtro(w), state=lambda w, *a: self._redibujar_btn_filtro(w))
         return b
+        
+    def _redibujar_btn_filtro(self, w):
+        w.canvas.before.clear()
+        with w.canvas.before:
+            if getattr(w, "filtro_activo", False):
+                Color(*tema.fondo_resaltado)
+                RoundedRectangle(pos=w.pos, size=w.size, radius=[8])
+                Color(*tema.primario)
+            else:
+                if w.state == 'down':
+                    Color(*tema.fondo_sutil)
+                else:
+                    Color(0, 0, 0, 0)
+                RoundedRectangle(pos=w.pos, size=w.size, radius=[8])
+                Color(*tema.borde)
+            Line(rounded_rectangle=(w.x, w.y, w.width, w.height, 8), width=1)
         
     def _redibujar_btn_contorno(self, w):
         w.canvas.before.clear()
@@ -173,14 +199,91 @@ class VistaGastos(ScrollView):
             Color(*tema.fondo_sutil)
             RoundedRectangle(pos=w.pos, size=w.size, radius=[6])
             
+    # ------------------------------------------------------------------ filtros
+    def _actualizar_botones_filtros(self):
+        """Pone en cada botón el filtro elegido (o su nombre por defecto) y lo resalta si está activo."""
+        estados = [
+            (self.btn_mes, nombre_mes(self.filtro_mes) if self.filtro_mes else ETIQUETA_MES, self.filtro_mes is not None),
+            (self.btn_cat, self.filtro_categoria or ETIQUETA_CATEGORIA, self.filtro_categoria is not None),
+            (self.btn_met, self.filtro_metodo or ETIQUETA_METODO, self.filtro_metodo is not None),
+        ]
+        for b, etiqueta, activo in estados:
+            b.filtro_activo = activo
+            b.text = con_icono(etiqueta, "chevron-down", derecha=True)
+            b.bold = activo
+            b.color = tema.primario if activo else tema.texto_secundario
+            b.texture_update()
+            b.width = max(120, b.texture_size[0] + 34)
+            self._redibujar_btn_filtro(b)
+            
+    def _opciones_unicas(self, base, campo):
+        """Opciones fijas del formulario más cualquier valor que exista en los datos."""
+        vistos = list(base)
+        for g in estado.gastos:
+            if g[campo] not in vistos:
+                vistos.append(g[campo])
+        return vistos
+        
+    def _abrir_menu_mes(self):
+        meses = meses_disponibles([g["fecha"] for g in estado.gastos])
+        opciones = [(None, "Todos los meses")] + [(m, etiqueta_mes_menu(m)) for m in meses]
+        abrir_menu(self.btn_mes, opciones, self.filtro_mes, self._elegir_mes, ancho=230)
+        
+    def _abrir_menu_categoria(self):
+        opciones = [(None, "Todas las categorías")] + [(c, c) for c in self._opciones_unicas(estado.categorias, "categoria")]
+        abrir_menu(self.btn_cat, opciones, self.filtro_categoria, self._elegir_categoria, ancho=210)
+        
+    def _abrir_menu_metodo(self):
+        opciones = [(None, "Todos los métodos")] + [(m, m) for m in self._opciones_unicas(METODOS_GASTO, "metodo")]
+        abrir_menu(self.btn_met, opciones, self.filtro_metodo, self._elegir_metodo, ancho=210)
+        
+    def _elegir_mes(self, valor):
+        self.filtro_mes = valor
+        self._aplicar_filtros()
+        
+    def _elegir_categoria(self, valor):
+        self.filtro_categoria = valor
+        self._aplicar_filtros()
+        
+    def _elegir_metodo(self, valor):
+        self.filtro_metodo = valor
+        self._aplicar_filtros()
+        
+    def _aplicar_filtros(self):
+        self.pagina = 1
+        self._actualizar_botones_filtros()
+        self._cargar_filas()
+        
+    def _registros_filtrados(self):
+        """Gastos que cumplen búsqueda y filtros, del más reciente al más antiguo."""
+        q = self.filtro_busqueda.lower()
+        resultado = []
+        for g in estado.gastos:
+            if q and q not in g["descripcion"].lower() and q not in g["categoria"].lower():
+                continue
+            if self.filtro_categoria is not None and g["categoria"] != self.filtro_categoria:
+                continue
+            if self.filtro_metodo is not None and g["metodo"] != self.filtro_metodo:
+                continue
+            if self.filtro_mes is not None and mes_de(g["fecha"]) != self.filtro_mes:
+                continue
+            resultado.append(g)
+        return sorted(resultado, key=lambda r: fecha_orden(r["fecha"]), reverse=True)
+        
+    # -------------------------------------------------------------------- tabla
     def _cargar_filas(self):
         self.caja_filas.clear_widgets()
-        filtrados = [
-            e for e in estado.gastos 
-            if self.filtro_busqueda.lower() in e["descripcion"].lower() or self.filtro_busqueda.lower() in e["categoria"].lower()
-        ]
+        filtrados = self._registros_filtrados()
+        total = len(filtrados)
+        self.pagina = min(self.pagina, max(1, math.ceil(total / TAMANO_PAGINA)))
+        inicio = (self.pagina - 1) * TAMANO_PAGINA
+        visibles = filtrados[inicio:inicio + TAMANO_PAGINA]
         
-        for item in filtrados:
+        if not visibles:
+            vacio = Label(text="No hay gastos que coincidan con los filtros.", font_size="13sp", color=tema.texto_atenuado, size_hint_y=None, height=70)
+            self.caja_filas.add_widget(vacio)
+        
+        for item in visibles:
             fila = BoxLayout(orientation="horizontal", size_hint_y=None, height=44, padding=[12, 0, 12, 0])
             fila.bind(pos=lambda w, *a: self._redibujar_linea_fila(w), size=lambda w, *a: self._redibujar_linea_fila(w))
             
@@ -214,10 +317,14 @@ class VistaGastos(ScrollView):
                 background_color=[0, 0, 0, 0],
                 size_hint_x=0.08
             )
+            btn_editar.bind(on_release=lambda *a, it=item: self._abrir_editar(it))
             fila.add_widget(btn_editar)
             
             self._redibujar_linea_fila(fila)
             self.caja_filas.add_widget(fila)
+            
+        self.lbl_conteo.text = f"{total} movimientos"
+        self.paginacion.actualizar(total, self.pagina)
             
     def _redibujar_linea_fila(self, w):
         w.canvas.before.clear()
@@ -225,18 +332,30 @@ class VistaGastos(ScrollView):
             Color(*tema.borde_claro)
             Line(points=[w.x, w.y, w.x + w.width, w.y], width=1)
             
+    def _abrir_editar(self, item):
+        ModalEditarGasto(item).open()
+        
+    def _al_cambiar_pagina(self, pagina):
+        self.pagina = pagina
+        self._cargar_filas()
+            
     def _al_buscar(self, instance, value):
         self.filtro_busqueda = value.strip()
+        self.pagina = 1
         self._cargar_filas()
         
     def _limpiar_filtros(self):
-        self.in_buscar.text = ""
         self.filtro_busqueda = ""
+        self.filtro_mes = None
+        self.filtro_categoria = None
+        self.filtro_metodo = None
+        self.pagina = 1
+        self.in_buscar.text = ""
+        self._actualizar_botones_filtros()
         self._cargar_filas()
         
     def refrescar_tabla(self, *args):
         self._cargar_filas()
-        self.lbl_conteo.text = f"{len(estado.gastos)} movimientos"
         
     def actualizar_tema(self, *args):
         self.lbl_info.color = tema.texto_secundario
@@ -245,14 +364,10 @@ class VistaGastos(ScrollView):
         self.lbl_t.color = tema.texto_principal
         self.lbl_conteo.color = tema.texto_atenuado
         self.in_buscar._al_cambiar_tema()
-        for bf in self.botones_filtros:
-            self._redibujar_btn_contorno(bf)
-            bf.color = tema.texto_secundario
+        self._actualizar_botones_filtros()
         self.btn_limpiar.color = tema.texto_atenuado
         self._redibujar_enc(self.enc)
         for c in self.celdas_enc:
             c.color = tema.texto_atenuado
-        self.lbl_p.color = tema.texto_atenuado
-        for pb, p in self.botones_pag:
-            pb._actualizar_fondo()
+        self.paginacion.actualizar_tema()
         self._cargar_filas()
